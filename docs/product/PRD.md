@@ -4,7 +4,7 @@
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Product | LogLens — self-hosted log ingestion, LensQL query language and alerting                                                                         |
 | Status  | M0–M2 delivered (foundation + search slice); M3–M8 planned                                                                                      |
-| Owner   | LogLens contributors                                                                                                                                    |
+| Owner   | LogLens contributors                                                                                                                            |
 | Related | [requirements.md](requirements.md) · [user-stories.md](user-stories.md) · [roadmap](../planning/roadmap.md) · [backlog](../planning/backlog.md) |
 
 ## 1. Vision
