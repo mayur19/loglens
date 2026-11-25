@@ -41,15 +41,15 @@ describe('schemas', () => {
     const parsed = registerSchema.parse({
       organizationName: 'Acme',
       name: 'Ann',
-      email: ' ANN@Acme.io ',
+      email: ' ANN@Acme.example ',
       password: 'correct horse battery',
     });
-    expect(parsed.email).toBe('ann@acme.io');
+    expect(parsed.email).toBe('ann@acme.example');
     expect(
       registerSchema.safeParse({
         organizationName: 'Acme',
         name: 'Ann',
-        email: 'ann@acme.io',
+        email: 'ann@acme.example',
         password: 'short',
       }).success,
     ).toBe(false);
