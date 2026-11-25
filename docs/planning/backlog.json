@@ -1,0 +1,929 @@
+[
+  {
+    "id": "LG-001",
+    "title": "Monorepo tooling: npm workspaces, strict TS, ESLint, Prettier",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 6,
+    "status": "done",
+    "dependsOn": []
+  },
+  {
+    "id": "LG-002",
+    "title": "Zod-validated config loader incl. TRUST_PROXY rules",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-001"]
+  },
+  {
+    "id": "LG-003",
+    "title": "Fastify app shell: envelope, central errors, request IDs, redacted logs",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 6,
+    "status": "done",
+    "dependsOn": ["LG-001"]
+  },
+  {
+    "id": "LG-004",
+    "title": "Forward-only migration runner (checksums, advisory lock, per-file txn)",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 5,
+    "status": "done",
+    "dependsOn": ["LG-003"]
+  },
+  {
+    "id": "LG-005",
+    "title": "Foundation schema: organizations, users, memberships, sessions, audit_events",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 4,
+    "status": "done",
+    "dependsOn": ["LG-004"]
+  },
+  {
+    "id": "LG-006",
+    "title": "Health and readiness endpoints",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 1,
+    "status": "done",
+    "dependsOn": ["LG-003"]
+  },
+  {
+    "id": "LG-007",
+    "title": "run.sh launcher (setup/migrate/seed/reset/test/dev)",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 4,
+    "status": "done",
+    "dependsOn": ["LG-004"]
+  },
+  {
+    "id": "LG-008",
+    "title": "CI on GitHub runner with native PostgreSQL (no containers)",
+    "epic": "E1 Platform",
+    "milestone": "M0",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-001"]
+  },
+  {
+    "id": "LG-010",
+    "title": "Register organization owner (non-enumerating, IP-limited)",
+    "epic": "E2 Identity & access",
+    "milestone": "M1",
+    "hours": 6,
+    "status": "done",
+    "dependsOn": ["LG-005"]
+  },
+  {
+    "id": "LG-011",
+    "title": "Login / logout / me with hashed Postgres sessions",
+    "epic": "E2 Identity & access",
+    "milestone": "M1",
+    "hours": 6,
+    "status": "done",
+    "dependsOn": ["LG-005"]
+  },
+  {
+    "id": "LG-012",
+    "title": "CSRF double-submit protection",
+    "epic": "E2 Identity & access",
+    "milestone": "M1",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-011"]
+  },
+  {
+    "id": "LG-013",
+    "title": "Login throttle: email backoff, IP spray limiter, fan-out cap, bounded store",
+    "epic": "E2 Identity & access",
+    "milestone": "M1",
+    "hours": 8,
+    "status": "done",
+    "dependsOn": ["LG-011"]
+  },
+  {
+    "id": "LG-014",
+    "title": "RBAC skeleton: roles to permissions, route guards",
+    "epic": "E2 Identity & access",
+    "milestone": "M1",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-011"]
+  },
+  {
+    "id": "LG-015",
+    "title": "Audit write path with append-only trigger",
+    "epic": "E2 Identity & access",
+    "milestone": "M1",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-005"]
+  },
+  {
+    "id": "LG-020",
+    "title": "LensQL lexer with spans and limits",
+    "epic": "E3 LensQL engine",
+    "milestone": "M2",
+    "hours": 5,
+    "status": "done",
+    "dependsOn": ["LG-001"]
+  },
+  {
+    "id": "LG-021",
+    "title": "LensQL recursive-descent parser and AST",
+    "epic": "E3 LensQL engine",
+    "milestone": "M2",
+    "hours": 10,
+    "status": "done",
+    "dependsOn": ["LG-020"]
+  },
+  {
+    "id": "LG-022",
+    "title": "Semantic analyzer: pipeline stage ordering and validation",
+    "epic": "E3 LensQL engine",
+    "milestone": "M2",
+    "hours": 5,
+    "status": "done",
+    "dependsOn": ["LG-021"]
+  },
+  {
+    "id": "LG-023",
+    "title": "Compiler to parameterized SQL (filters, stats, where, sort, head, fields)",
+    "epic": "E3 LensQL engine",
+    "milestone": "M2",
+    "hours": 14,
+    "status": "done",
+    "dependsOn": ["LG-022"]
+  },
+  {
+    "id": "LG-024",
+    "title": "Histogram compilation and dense bucket fill",
+    "epic": "E3 LensQL engine",
+    "milestone": "M2",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-023"]
+  },
+  {
+    "id": "LG-025",
+    "title": "Injection and adversarial test suite for the compiler",
+    "epic": "E3 LensQL engine",
+    "milestone": "M2",
+    "hours": 6,
+    "status": "done",
+    "dependsOn": ["LG-023"]
+  },
+  {
+    "id": "LG-026",
+    "title": "Ingestion API keys: create/list/revoke, SHA-256 at rest, constant-time check",
+    "epic": "E4 Ingestion",
+    "milestone": "M2",
+    "hours": 5,
+    "status": "done",
+    "dependsOn": ["LG-014"]
+  },
+  {
+    "id": "LG-027",
+    "title": "Time-partitioned log_events with daily partition function",
+    "epic": "E4 Ingestion",
+    "milestone": "M2",
+    "hours": 5,
+    "status": "done",
+    "dependsOn": ["LG-004"]
+  },
+  {
+    "id": "LG-028",
+    "title": "NDJSON/JSON ingestion endpoint with event normalisation",
+    "epic": "E4 Ingestion",
+    "milestone": "M2",
+    "hours": 8,
+    "status": "done",
+    "dependsOn": ["LG-026", "LG-027"]
+  },
+  {
+    "id": "LG-029",
+    "title": "Search, histogram and validate API (read-only txn, statement timeout)",
+    "epic": "E3 LensQL engine",
+    "milestone": "M2",
+    "hours": 6,
+    "status": "done",
+    "dependsOn": ["LG-023", "LG-027"]
+  },
+  {
+    "id": "LG-030",
+    "title": "Web shell: login/register, layout, Planned badges",
+    "epic": "E6 Search experience",
+    "milestone": "M2",
+    "hours": 5,
+    "status": "done",
+    "dependsOn": ["LG-011"]
+  },
+  {
+    "id": "LG-031",
+    "title": "Search screen: query bar, SVG histogram, results table, error underline",
+    "epic": "E6 Search experience",
+    "milestone": "M2",
+    "hours": 8,
+    "status": "done",
+    "dependsOn": ["LG-029", "LG-030"]
+  },
+  {
+    "id": "LG-032",
+    "title": "Ingestion keys screen",
+    "epic": "E6 Search experience",
+    "milestone": "M2",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-026", "LG-030"]
+  },
+  {
+    "id": "LG-033",
+    "title": "Deterministic demo seed (24h, incident spike)",
+    "epic": "E1 Platform",
+    "milestone": "M2",
+    "hours": 3,
+    "status": "done",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-034",
+    "title": "Pending endpoint registry answering 501 with ticket ids",
+    "epic": "E1 Platform",
+    "milestone": "M2",
+    "hours": 2,
+    "status": "done",
+    "dependsOn": ["LG-003"]
+  },
+  {
+    "id": "LG-100",
+    "title": "Ingestion batching queue with backpressure (429 + Retry-After)",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 24,
+    "status": "pending",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-101",
+    "title": "COPY-based bulk writer for high-volume batches",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-100"]
+  },
+  {
+    "id": "LG-102",
+    "title": "Ingestion throughput benchmark harness",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-101"]
+  },
+  {
+    "id": "LG-103",
+    "title": "gzip/deflate request bodies with decompression-bomb limits",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 8,
+    "status": "pending",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-104",
+    "title": "Idempotent batch submission via Idempotency-Key",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-105",
+    "title": "Dead-letter store for rejected events",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-110",
+    "title": "RFC 5424 syslog parser and ingestion endpoint",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-111",
+    "title": "RFC 3164 (BSD) syslog fallback parser",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-110"]
+  },
+  {
+    "id": "LG-112",
+    "title": "Per-tenant ingestion quotas with usage metering",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 22,
+    "status": "pending",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-113",
+    "title": "Per-key token-bucket rate limiting in Postgres",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 14,
+    "status": "pending",
+    "dependsOn": ["LG-026"]
+  },
+  {
+    "id": "LG-114",
+    "title": "API key scopes and expiry",
+    "epic": "E4 Ingestion",
+    "milestone": "M3",
+    "hours": 8,
+    "status": "pending",
+    "dependsOn": ["LG-026"]
+  },
+  {
+    "id": "LG-120",
+    "title": "Extraction pipeline model and CRUD",
+    "epic": "E5 Pipelines",
+    "milestone": "M4",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-028"]
+  },
+  {
+    "id": "LG-121",
+    "title": "Grok-style pattern engine with in-house pattern library",
+    "epic": "E5 Pipelines",
+    "milestone": "M4",
+    "hours": 36,
+    "status": "pending",
+    "dependsOn": ["LG-120"]
+  },
+  {
+    "id": "LG-122",
+    "title": "Pipeline dry-run endpoint against sample lines",
+    "epic": "E5 Pipelines",
+    "milestone": "M4",
+    "hours": 8,
+    "status": "pending",
+    "dependsOn": ["LG-121"]
+  },
+  {
+    "id": "LG-123",
+    "title": "Pipeline execution in the ingest path with per-event budgets",
+    "epic": "E5 Pipelines",
+    "milestone": "M4",
+    "hours": 18,
+    "status": "pending",
+    "dependsOn": ["LG-121", "LG-100"]
+  },
+  {
+    "id": "LG-124",
+    "title": "Type coercion, rename and drop processors",
+    "epic": "E5 Pipelines",
+    "milestone": "M4",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-121"]
+  },
+  {
+    "id": "LG-125",
+    "title": "Pipeline editor UI with live preview",
+    "epic": "E5 Pipelines",
+    "milestone": "M4",
+    "hours": 24,
+    "status": "pending",
+    "dependsOn": ["LG-122"]
+  },
+  {
+    "id": "LG-130",
+    "title": "Saved searches CRUD and sharing",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-131",
+    "title": "LensQL rex command (query-time regex extraction)",
+    "epic": "E3 LensQL engine",
+    "milestone": "M5",
+    "hours": 24,
+    "status": "pending",
+    "dependsOn": ["LG-023"]
+  },
+  {
+    "id": "LG-132",
+    "title": "LensQL eval expressions (arithmetic, string and time functions)",
+    "epic": "E3 LensQL engine",
+    "milestone": "M5",
+    "hours": 32,
+    "status": "pending",
+    "dependsOn": ["LG-023"]
+  },
+  {
+    "id": "LG-133",
+    "title": "LensQL timechart, top and rare commands",
+    "epic": "E3 LensQL engine",
+    "milestone": "M5",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-023"]
+  },
+  {
+    "id": "LG-134",
+    "title": "Query editor autocomplete and syntax highlighting",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 28,
+    "status": "pending",
+    "dependsOn": ["LG-135"]
+  },
+  {
+    "id": "LG-135",
+    "title": "Field catalog with sampled types and cardinality",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-136",
+    "title": "Streaming export of results (NDJSON/CSV)",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-137",
+    "title": "Query cost guard using EXPLAIN estimates",
+    "epic": "E3 LensQL engine",
+    "milestone": "M5",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-138",
+    "title": "Result cache for repeated dashboard queries",
+    "epic": "E3 LensQL engine",
+    "milestone": "M6",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-151"]
+  },
+  {
+    "id": "LG-139",
+    "title": "Keyset pagination for event results",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-140",
+    "title": "Live tail WebSocket server (LISTEN/NOTIFY fan-out, filter evaluation)",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 36,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-141",
+    "title": "Live tail UI with pause and highlighting",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-140"]
+  },
+  {
+    "id": "LG-142",
+    "title": "Event context view (surrounding lines)",
+    "epic": "E6 Search experience",
+    "milestone": "M5",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-150",
+    "title": "Dashboard CRUD and grid layout",
+    "epic": "E7 Dashboards",
+    "milestone": "M6",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-130"]
+  },
+  {
+    "id": "LG-151",
+    "title": "Time-series panels backed by stats span queries",
+    "epic": "E7 Dashboards",
+    "milestone": "M6",
+    "hours": 18,
+    "status": "pending",
+    "dependsOn": ["LG-150"]
+  },
+  {
+    "id": "LG-152",
+    "title": "In-house SVG chart library (line, area, bar, axes, tooltips)",
+    "epic": "E7 Dashboards",
+    "milestone": "M6",
+    "hours": 32,
+    "status": "pending",
+    "dependsOn": ["LG-031"]
+  },
+  {
+    "id": "LG-153",
+    "title": "Dashboard variables and shared time picker",
+    "epic": "E7 Dashboards",
+    "milestone": "M6",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-151"]
+  },
+  {
+    "id": "LG-154",
+    "title": "Panel auto-refresh with request coalescing",
+    "epic": "E7 Dashboards",
+    "milestone": "M6",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-151"]
+  },
+  {
+    "id": "LG-160",
+    "title": "Alert rule model and CRUD (query, schedule, threshold)",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-029"]
+  },
+  {
+    "id": "LG-161",
+    "title": "Leased evaluation scheduler (FOR UPDATE SKIP LOCKED)",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 28,
+    "status": "pending",
+    "dependsOn": ["LG-160"]
+  },
+  {
+    "id": "LG-162",
+    "title": "Rule preview and backtest over history",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 18,
+    "status": "pending",
+    "dependsOn": ["LG-160"]
+  },
+  {
+    "id": "LG-163",
+    "title": "Alert state machine with dedup keys",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 24,
+    "status": "pending",
+    "dependsOn": ["LG-161"]
+  },
+  {
+    "id": "LG-164",
+    "title": "Acknowledge and silence alerts",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-163"]
+  },
+  {
+    "id": "LG-165",
+    "title": "EWMA anomaly detection rules",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 28,
+    "status": "pending",
+    "dependsOn": ["LG-163"]
+  },
+  {
+    "id": "LG-166",
+    "title": "Flapping suppression with hysteresis",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-163"]
+  },
+  {
+    "id": "LG-167",
+    "title": "Simulated-clock correctness suite for alert evaluation",
+    "epic": "E8 Alerting",
+    "milestone": "M7",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-163"]
+  },
+  {
+    "id": "LG-170",
+    "title": "Notification channels: in-app, webhook-to-outbox, email-to-outbox",
+    "epic": "E9 Incidents & notifications",
+    "milestone": "M7",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-163"]
+  },
+  {
+    "id": "LG-171",
+    "title": "Local outbox with delivery worker, retries and backoff",
+    "epic": "E9 Incidents & notifications",
+    "milestone": "M7",
+    "hours": 22,
+    "status": "pending",
+    "dependsOn": ["LG-170"]
+  },
+  {
+    "id": "LG-172",
+    "title": "In-app notification inbox",
+    "epic": "E9 Incidents & notifications",
+    "milestone": "M7",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-170"]
+  },
+  {
+    "id": "LG-173",
+    "title": "Notification templates",
+    "epic": "E9 Incidents & notifications",
+    "milestone": "M7",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-170"]
+  },
+  {
+    "id": "LG-180",
+    "title": "Incidents: open from alerts, assign, status workflow",
+    "epic": "E9 Incidents & notifications",
+    "milestone": "M7",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-163"]
+  },
+  {
+    "id": "LG-181",
+    "title": "Incident timeline (transitions, notes, linked searches)",
+    "epic": "E9 Incidents & notifications",
+    "milestone": "M7",
+    "hours": 18,
+    "status": "pending",
+    "dependsOn": ["LG-180"]
+  },
+  {
+    "id": "LG-182",
+    "title": "Incident screens",
+    "epic": "E9 Incidents & notifications",
+    "milestone": "M7",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-181"]
+  },
+  {
+    "id": "LG-190",
+    "title": "Per-tenant retention policies",
+    "epic": "E10 Storage & retention",
+    "milestone": "M8",
+    "hours": 14,
+    "status": "pending",
+    "dependsOn": ["LG-027"]
+  },
+  {
+    "id": "LG-191",
+    "title": "Partition manager job: pre-create, drop expired, drain default",
+    "epic": "E10 Storage & retention",
+    "milestone": "M8",
+    "hours": 22,
+    "status": "pending",
+    "dependsOn": ["LG-190"]
+  },
+  {
+    "id": "LG-192",
+    "title": "Archive partitions to local disk before drop",
+    "epic": "E10 Storage & retention",
+    "milestone": "M8",
+    "hours": 16,
+    "status": "pending",
+    "dependsOn": ["LG-191"]
+  },
+  {
+    "id": "LG-193",
+    "title": "Per-tenant storage usage reporting",
+    "epic": "E10 Storage & retention",
+    "milestone": "M8",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-191"]
+  },
+  {
+    "id": "LG-200",
+    "title": "Members list",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 8,
+    "status": "pending",
+    "dependsOn": ["LG-014"]
+  },
+  {
+    "id": "LG-201",
+    "title": "Invitations via the local outbox",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 14,
+    "status": "pending",
+    "dependsOn": ["LG-171"]
+  },
+  {
+    "id": "LG-202",
+    "title": "Role changes with last-owner protection",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 8,
+    "status": "pending",
+    "dependsOn": ["LG-200"]
+  },
+  {
+    "id": "LG-203",
+    "title": "Custom roles and fine-grained permissions",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 24,
+    "status": "pending",
+    "dependsOn": ["LG-202"]
+  },
+  {
+    "id": "LG-204",
+    "title": "PostgreSQL row-level security as defence in depth",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-014"]
+  },
+  {
+    "id": "LG-205",
+    "title": "Audit trail browser and export",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-015"]
+  },
+  {
+    "id": "LG-210",
+    "title": "Password reset via the local outbox",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-171"]
+  },
+  {
+    "id": "LG-211",
+    "title": "Email verification for self-service signup via the local outbox",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-171"]
+  },
+  {
+    "id": "LG-212",
+    "title": "TOTP multi-factor authentication (RFC 6238, in-house)",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-011"]
+  },
+  {
+    "id": "LG-213",
+    "title": "Session management (list and revoke sessions)",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 8,
+    "status": "pending",
+    "dependsOn": ["LG-011"]
+  },
+  {
+    "id": "LG-214",
+    "title": "Organization switcher for multi-org users",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-200"]
+  },
+  {
+    "id": "LG-215",
+    "title": "Organization settings",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 8,
+    "status": "pending",
+    "dependsOn": ["LG-014"]
+  },
+  {
+    "id": "LG-216",
+    "title": "Move limiter counters to PostgreSQL for multi-instance deployments",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 14,
+    "status": "pending",
+    "dependsOn": ["LG-013"]
+  },
+  {
+    "id": "LG-217",
+    "title": "Content-Security-Policy and SPA hardening",
+    "epic": "E2 Identity & access",
+    "milestone": "M8",
+    "hours": 6,
+    "status": "pending",
+    "dependsOn": ["LG-030"]
+  },
+  {
+    "id": "LG-220",
+    "title": "Self-observability metrics endpoint (Prometheus text format)",
+    "epic": "E11 Operations",
+    "milestone": "M8",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-003"]
+  },
+  {
+    "id": "LG-221",
+    "title": "Load-test suite and capacity report",
+    "epic": "E11 Operations",
+    "milestone": "M8",
+    "hours": 20,
+    "status": "pending",
+    "dependsOn": ["LG-102"]
+  },
+  {
+    "id": "LG-222",
+    "title": "Backup and restore drill automation",
+    "epic": "E11 Operations",
+    "milestone": "M8",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-007"]
+  },
+  {
+    "id": "LG-223",
+    "title": "Playwright end-to-end suite in CI with cached browsers",
+    "epic": "E11 Operations",
+    "milestone": "M8",
+    "hours": 12,
+    "status": "pending",
+    "dependsOn": ["LG-031"]
+  },
+  {
+    "id": "LG-224",
+    "title": "Accessibility audit and fixes",
+    "epic": "E11 Operations",
+    "milestone": "M8",
+    "hours": 14,
+    "status": "pending",
+    "dependsOn": ["LG-031"]
+  },
+  {
+    "id": "LG-225",
+    "title": "systemd and nginx deployment scripts",
+    "epic": "E11 Operations",
+    "milestone": "M8",
+    "hours": 10,
+    "status": "pending",
+    "dependsOn": ["LG-007"]
+  }
+]

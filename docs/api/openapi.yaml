@@ -1,0 +1,3068 @@
+# LogLens OpenAPI 3.1 contract for the full target API.
+# x-status: implemented | pending. Pending operations answer 501 with details.ticket.
+openapi: 3.1.0
+info:
+  title: LogLens API
+  version: 0.1.0
+  description:
+    'Log ingestion, LensQL search and alerting. Every operation carries `x-status: implemented|pending`; pending
+    operations are registered and answer 501 NOT_IMPLEMENTED with `details.ticket` (see docs/planning/backlog.md). All responses
+    use the `{ data, error, meta? }` envelope.'
+  license:
+    name: MIT
+servers:
+  - url: http://127.0.0.1:4109
+    description: Local development
+tags:
+  - name: Platform
+  - name: Auth
+  - name: API keys
+  - name: Ingestion
+  - name: Search
+  - name: Saved searches
+  - name: Dashboards
+  - name: Alerting
+  - name: Notifications
+  - name: Incidents
+  - name: Pipelines
+  - name: Retention
+  - name: Organization
+security: &id001
+  - cookieAuth: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags:
+        - Platform
+      summary: Liveness probe
+      x-status: implemented
+      security: []
+      responses:
+        '200':
+          description: Process is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        const: ok
+                      version:
+                        type: string
+                  error:
+                    type: 'null'
+  /ready:
+    get:
+      operationId: getReady
+      tags:
+        - Platform
+      summary: Readiness probe (database reachable and migrated)
+      x-status: implemented
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        const: ready
+                      database:
+                        const: up
+                      migrations:
+                        type: integer
+                  error:
+                    type: 'null'
+        '503':
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/auth/csrf:
+    get:
+      operationId: getCsrfToken
+      tags:
+        - Auth
+      summary: Issue (or return) the CSRF double-submit token
+      x-status: implemented
+      security: []
+      responses:
+        '200':
+          description: Token; also set as the readable ll_csrf cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - csrfToken
+                    properties:
+                      csrfToken:
+                        type: string
+                  error:
+                    type: 'null'
+  /api/v1/auth/register:
+    post:
+      operationId: register
+      tags:
+        - Auth
+      summary: Register an organization and its owner
+      x-status: implemented
+      description:
+        Does not sign the user in and does not reveal whether the email is already registered. Limited to 5 attempts
+        per normalised client IP per hour. Email verification via the local outbox is LG-211.
+      security:
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '202':
+          description: Always the same generic message whether or not the email exists
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags:
+        - Auth
+      summary: Sign in and receive a session cookie
+      x-status: implemented
+      description:
+        Throttled per email (progressive backoff), per normalised IP (spraying) and by distinct emails per IP.
+        Failures return a generic message.
+      security:
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed in; sets ll_session (HttpOnly, SameSite=Lax) and rotates ll_csrf
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/Me'
+                      expiresAt:
+                        type: string
+                        format: date-time
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      tags:
+        - Auth
+      summary: End the current session
+      x-status: implemented
+      security: &id002
+        - cookieAuth: []
+          csrfHeader: []
+      responses:
+        '200':
+          description: Session deleted and cookie cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      loggedOut:
+                        const: true
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/CsrfInvalid'
+  /api/v1/auth/me:
+    get:
+      operationId: getMe
+      tags:
+        - Auth
+      summary: Current user, organization, role and permissions
+      x-status: implemented
+      security: *id001
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Me'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+  /api/v1/api-keys:
+    get:
+      operationId: listApiKeys
+      tags:
+        - API keys
+      summary: List ingestion API keys (requires ingest:keys:read)
+      x-status: implemented
+      security: *id001
+      responses:
+        '200':
+          description: Keys, newest first (never includes secrets)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKey'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createApiKey
+      tags:
+        - API keys
+      summary: Create an ingestion API key (requires ingest:keys:manage)
+      x-status: implemented
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: Created; the plaintext token is returned only in this response
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApiKeyCreated'
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/api-keys/{id}:
+    delete:
+      operationId: revokeApiKey
+      tags:
+        - API keys
+      summary: Revoke an ingestion API key (idempotent)
+      x-status: implemented
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security: *id002
+      responses:
+        '200':
+          description: Revoked key
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ApiKey'
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/ingest:
+    post:
+      operationId: ingestEvents
+      tags:
+        - Ingestion
+      summary: Ingest log events (NDJSON or JSON)
+      x-status: implemented
+      description:
+        'Authenticated by an ingestion API key; exempt from CSRF. Well-known keys (timestamp/@timestamp/time/ts,
+        level/severity/lvl, service/app, host/hostname, message/msg/log, trace_id/traceId, source) become columns; everything
+        else is stored in attributes. Limits: INGEST_MAX_EVENTS_PER_REQUEST (default 5000) and INGEST_MAX_BODY_BYTES (default
+        5 MiB).'
+      security:
+        - bearerApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              description: One JSON object per line; blank lines ignored
+            example:
+              '{"level":"error","service":"checkout","message":"upstream timeout","http":{"status":504}}
+
+              {"level":"info","message":"ok"}'
+          application/jsonl:
+            schema:
+              type: string
+          text/plain:
+            schema:
+              type: string
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/RawEvent'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/RawEvent'
+                  maxItems: 5000
+      responses:
+        '202':
+          description: Batch stored; per-line rejections reported
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/IngestResult'
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+  /api/v1/search:
+    post:
+      operationId: search
+      tags:
+        - Search
+      summary: Run a LensQL query
+      x-status: implemented
+      description:
+        Compiled to one parameterised statement executed in a READ ONLY transaction with a statement timeout (QUERY_TIMEOUT_MS,
+        default 5000).
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Events or a statistics table
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SearchResponse'
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/QueryError'
+  /api/v1/search/histogram:
+    post:
+      operationId: searchHistogram
+      tags:
+        - Search
+      summary: Event counts over time for the search part of a query
+      x-status: implemented
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HistogramRequest'
+      responses:
+        '200':
+          description: Dense, gap-free buckets
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/HistogramResponse'
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/QueryError'
+  /api/v1/search/validate:
+    post:
+      operationId: validateQuery
+      tags:
+        - Search
+      summary: Parse and analyse a query without executing it
+      x-status: implemented
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              additionalProperties: false
+              properties:
+                query:
+                  type: string
+                  maxLength: 4000
+      responses:
+        '200':
+          description: Validation result (invalid queries still return 200)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ValidateResponse'
+                  error:
+                    type: 'null'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+  /api/v1/auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags:
+        - Auth
+      summary: Verify a signup email with a token from the local outbox
+      x-status: pending
+      x-ticket: LG-211
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-211.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+      responses:
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/auth/password-reset:
+    post:
+      operationId: requestPasswordReset
+      tags:
+        - Auth
+      summary: Request or complete a password reset via the local outbox
+      x-status: pending
+      x-ticket: LG-210
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-210.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                token:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 12
+      responses:
+        '202':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                  error:
+                    type: 'null'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/organization:
+    get:
+      operationId: getOrganization
+      tags:
+        - Organization
+      summary: Organization settings
+      x-status: pending
+      x-ticket: LG-215
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-215.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Organization'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    patch:
+      operationId: updateOrganization
+      tags:
+        - Organization
+      summary: Update organization settings
+      x-status: pending
+      x-ticket: LG-215
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-215.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Organization'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/members:
+    get:
+      operationId: listMembers
+      tags:
+        - Organization
+      summary: List members and roles
+      x-status: pending
+      x-ticket: LG-200
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-200.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Member'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/invitations:
+    post:
+      operationId: createInvitation
+      tags:
+        - Organization
+      summary: Invite a member by email (delivered via the local outbox)
+      x-status: pending
+      x-ticket: LG-201
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-201.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  $ref: '#/components/schemas/Role'
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Invitation'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/members/{userId}:
+    patch:
+      operationId: updateMember
+      tags:
+        - Organization
+      summary: Change a member's role (last owner protected)
+      x-status: pending
+      x-ticket: LG-202
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-202.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  $ref: '#/components/schemas/Role'
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Member'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/audit-events:
+    get:
+      operationId: listAuditEvents
+      tags:
+        - Organization
+      summary: Browse the audit trail
+      x-status: pending
+      x-ticket: LG-205
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-205.
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEvent'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/ingest/syslog:
+    post:
+      operationId: ingestSyslog
+      tags:
+        - Ingestion
+      summary: Ingest RFC 5424 syslog lines (RFC 3164 fallback LG-111)
+      x-status: pending
+      x-ticket: LG-110
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-110.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+      responses:
+        '202':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/IngestResult'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/ingest/quota:
+    get:
+      operationId: getIngestQuota
+      tags:
+        - Ingestion
+      summary: Current ingestion quota and usage
+      x-status: pending
+      x-ticket: LG-112
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-112.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/IngestQuota'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/pipelines:
+    get:
+      operationId: listPipelines
+      tags:
+        - Pipelines
+      summary: List field extraction pipelines
+      x-status: pending
+      x-ticket: LG-120
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-120.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pipeline'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    post:
+      operationId: createPipeline
+      tags:
+        - Pipelines
+      summary: Create a field extraction pipeline
+      x-status: pending
+      x-ticket: LG-120
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-120.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pipeline'
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Pipeline'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/pipelines/test:
+    post:
+      operationId: testPipeline
+      tags:
+        - Pipelines
+      summary: Dry-run a pipeline against sample lines
+      x-status: pending
+      x-ticket: LG-122
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-122.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pipeline
+                - samples
+              properties:
+                pipeline:
+                  $ref: '#/components/schemas/Pipeline'
+                samples:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 100
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        input:
+                          type: string
+                        output:
+                          $ref: '#/components/schemas/RawEvent'
+                        error:
+                          type:
+                            - string
+                            - 'null'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/fields:
+    get:
+      operationId: listFields
+      tags:
+        - Search
+      summary: Field catalog with sampled types and cardinality
+      x-status: pending
+      x-ticket: LG-135
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-135.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FieldInfo'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/search/export:
+    post:
+      operationId: exportSearch
+      tags:
+        - Search
+      summary: Stream search results as NDJSON or CSV
+      x-status: pending
+      x-ticket: LG-136
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-136.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/SearchRequest'
+                - type: object
+                  properties:
+                    format:
+                      enum:
+                        - ndjson
+                        - csv
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/saved-searches:
+    get:
+      operationId: listSavedSearches
+      tags:
+        - Saved searches
+      summary: List saved searches
+      x-status: pending
+      x-ticket: LG-130
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-130.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SavedSearch'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    post:
+      operationId: createSavedSearch
+      tags:
+        - Saved searches
+      summary: Save a search
+      x-status: pending
+      x-ticket: LG-130
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-130.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedSearchInput'
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SavedSearch'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/saved-searches/{id}:
+    get:
+      operationId: getSavedSearch
+      tags:
+        - Saved searches
+      summary: Get a saved search
+      x-status: pending
+      x-ticket: LG-130
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-130.
+      parameters: &id003
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SavedSearch'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    patch:
+      operationId: updateSavedSearch
+      tags:
+        - Saved searches
+      summary: Update a saved search
+      x-status: pending
+      x-ticket: LG-130
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-130.
+      parameters: *id003
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedSearchInput'
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SavedSearch'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    delete:
+      operationId: deleteSavedSearch
+      tags:
+        - Saved searches
+      summary: Delete a saved search
+      x-status: pending
+      x-ticket: LG-130
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-130.
+      parameters: *id003
+      security: *id002
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        const: true
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/tail:
+    get:
+      operationId: liveTail
+      tags:
+        - Search
+      summary: Live tail over WebSocket
+      x-status: pending
+      x-ticket: LG-140
+      description:
+        "HTTP Upgrade to WebSocket. Server frames: {type:'event', event} | {type:'dropped', count} | {type:'error',
+        error}.
+
+
+        Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-140."
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 4000
+      security: *id001
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/dashboards:
+    get:
+      operationId: listDashboards
+      tags:
+        - Dashboards
+      summary: List dashboards
+      x-status: pending
+      x-ticket: LG-150
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-150.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dashboard'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    post:
+      operationId: createDashboard
+      tags:
+        - Dashboards
+      summary: Create a dashboard
+      x-status: pending
+      x-ticket: LG-150
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-150.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardInput'
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Dashboard'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/dashboards/{id}:
+    get:
+      operationId: getDashboard
+      tags:
+        - Dashboards
+      summary: Get a dashboard with panels
+      x-status: pending
+      x-ticket: LG-150
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-150.
+      parameters: *id003
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Dashboard'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    patch:
+      operationId: updateDashboard
+      tags:
+        - Dashboards
+      summary: Update a dashboard
+      x-status: pending
+      x-ticket: LG-150
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-150.
+      parameters: *id003
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DashboardInput'
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Dashboard'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    delete:
+      operationId: deleteDashboard
+      tags:
+        - Dashboards
+      summary: Delete a dashboard
+      x-status: pending
+      x-ticket: LG-150
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-150.
+      parameters: *id003
+      security: *id002
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        const: true
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/dashboards/{id}/panels:
+    post:
+      operationId: addPanel
+      tags:
+        - Dashboards
+      summary: Add a time-series panel
+      x-status: pending
+      x-ticket: LG-151
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-151.
+      parameters: *id003
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PanelInput'
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Panel'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/alert-rules:
+    get:
+      operationId: listAlertRules
+      tags:
+        - Alerting
+      summary: List alert rules
+      x-status: pending
+      x-ticket: LG-160
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-160.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AlertRule'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    post:
+      operationId: createAlertRule
+      tags:
+        - Alerting
+      summary: Create an alert rule
+      x-status: pending
+      x-ticket: LG-160
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-160.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleInput'
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AlertRule'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/alert-rules/{id}:
+    get:
+      operationId: getAlertRule
+      tags:
+        - Alerting
+      summary: Get an alert rule
+      x-status: pending
+      x-ticket: LG-160
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-160.
+      parameters: *id003
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AlertRule'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    patch:
+      operationId: updateAlertRule
+      tags:
+        - Alerting
+      summary: Update an alert rule
+      x-status: pending
+      x-ticket: LG-160
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-160.
+      parameters: *id003
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleInput'
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AlertRule'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    delete:
+      operationId: deleteAlertRule
+      tags:
+        - Alerting
+      summary: Delete an alert rule
+      x-status: pending
+      x-ticket: LG-160
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-160.
+      parameters: *id003
+      security: *id002
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deleted:
+                        const: true
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/alert-rules/{id}/preview:
+    post:
+      operationId: previewAlertRule
+      tags:
+        - Alerting
+      summary: Backtest a rule over history
+      x-status: pending
+      x-ticket: LG-162
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-162.
+      parameters: *id003
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from:
+                  type: string
+                  format: date-time
+                to:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      transitions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Alert'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/alerts:
+    get:
+      operationId: listAlerts
+      tags:
+        - Alerting
+      summary: List alert instances
+      x-status: pending
+      x-ticket: LG-163
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-163.
+      parameters:
+        - name: state
+          in: query
+          schema:
+            enum:
+              - pending
+              - firing
+              - resolving
+              - silenced
+              - ok
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/alerts/{id}/acknowledge:
+    post:
+      operationId: acknowledgeAlert
+      tags:
+        - Alerting
+      summary: Acknowledge or silence an alert
+      x-status: pending
+      x-ticket: LG-164
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-164.
+      parameters: *id003
+      security: *id002
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                silenceMinutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 10080
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Alert'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/notification-channels:
+    get:
+      operationId: listNotificationChannels
+      tags:
+        - Notifications
+      summary: List notification channels
+      x-status: pending
+      x-ticket: LG-170
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-170.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationChannel'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    post:
+      operationId: createNotificationChannel
+      tags:
+        - Notifications
+      summary: Create a notification channel
+      x-status: pending
+      x-ticket: LG-170
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-170.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationChannel'
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/NotificationChannel'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/notifications:
+    get:
+      operationId: listNotifications
+      tags:
+        - Notifications
+      summary: In-app notification inbox
+      x-status: pending
+      x-ticket: LG-172
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-172.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/outbox:
+    get:
+      operationId: listOutbox
+      tags:
+        - Notifications
+      summary: Inspect the local webhook/email outbox
+      x-status: pending
+      x-ticket: LG-171
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-171.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OutboxMessage'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/incidents:
+    get:
+      operationId: listIncidents
+      tags:
+        - Incidents
+      summary: List incidents
+      x-status: pending
+      x-ticket: LG-180
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-180.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Incident'
+                  error:
+                    type: 'null'
+                  meta:
+                    $ref: '#/components/schemas/ListMeta'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    post:
+      operationId: createIncident
+      tags:
+        - Incidents
+      summary: Open an incident
+      x-status: pending
+      x-ticket: LG-180
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-180.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                alertIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Incident'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/incidents/{id}/timeline:
+    get:
+      operationId: getIncidentTimeline
+      tags:
+        - Incidents
+      summary: Incident timeline
+      x-status: pending
+      x-ticket: LG-181
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-181.
+      parameters: *id003
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IncidentEvent'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/retention:
+    get:
+      operationId: getRetention
+      tags:
+        - Retention
+      summary: Retention policy
+      x-status: pending
+      x-ticket: LG-190
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-190.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RetentionPolicy'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+    put:
+      operationId: putRetention
+      tags:
+        - Retention
+      summary: Update retention policy
+      x-status: pending
+      x-ticket: LG-190
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-190.
+      security: *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionPolicy'
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RetentionPolicy'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+  /api/v1/partitions:
+    get:
+      operationId: listPartitions
+      tags:
+        - Retention
+      summary: Partition inventory and sizes
+      x-status: pending
+      x-ticket: LG-191
+      description: Not implemented yet; currently answers 501 NOT_IMPLEMENTED with details.ticket = LG-191.
+      security: *id001
+      responses:
+        '200':
+          description: Target response once implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - error
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartitionInfo'
+                  error:
+                    type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: ll_session
+      description: HttpOnly, SameSite=Lax session cookie set by POST /api/v1/auth/login.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: x-csrf-token
+      description: Must equal the ll_csrf cookie on every non-GET /api/* request except /api/v1/ingest*.
+    bearerApiKey:
+      type: http
+      scheme: bearer
+      bearerFormat: llk_<prefix>_<secret>
+      description: Ingestion API key created via POST /api/v1/api-keys.
+  schemas:
+    Envelope:
+      type: object
+      description: Every response uses this envelope.
+      required:
+        - data
+        - error
+      properties:
+        data: {}
+        error:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/Error'
+        meta:
+          type: object
+          additionalProperties: true
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - UNAUTHENTICATED
+            - FORBIDDEN
+            - CSRF_INVALID
+            - NOT_FOUND
+            - CONFLICT
+            - RATE_LIMITED
+            - PAYLOAD_TOO_LARGE
+            - QUERY_INVALID
+            - QUERY_TIMEOUT
+            - QUERY_FAILED
+            - NOT_IMPLEMENTED
+            - INTERNAL
+        message:
+          type: string
+        details: {}
+    ErrorEnvelope:
+      type: object
+      required:
+        - data
+        - error
+      properties:
+        data:
+          type: 'null'
+        error:
+          $ref: '#/components/schemas/Error'
+    ListMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Keyset cursor (LG-139)
+    Span:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: integer
+          minimum: 0
+        end:
+          type: integer
+          minimum: 0
+      description: Character offsets in the query (end exclusive).
+    LensQLError:
+      type: object
+      required:
+        - code
+        - message
+        - span
+      properties:
+        code:
+          enum:
+            - LEX_ERROR
+            - PARSE_ERROR
+            - SEMANTIC_ERROR
+            - LIMIT_EXCEEDED
+            - TIME_RANGE_ERROR
+        message:
+          type: string
+        span:
+          $ref: '#/components/schemas/Span'
+    Role:
+      type: string
+      enum:
+        - owner
+        - admin
+        - member
+        - viewer
+    Permission:
+      type: string
+      enum:
+        - search:read
+        - search:save
+        - ingest:keys:read
+        - ingest:keys:manage
+        - audit:read
+        - org:manage
+        - members:manage
+        - alerts:manage
+        - dashboards:manage
+        - pipelines:manage
+        - retention:manage
+    RegisterRequest:
+      type: object
+      required:
+        - organizationName
+        - name
+        - email
+        - password
+      properties:
+        organizationName:
+          type: string
+          minLength: 2
+          maxLength: 120
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 12
+          maxLength: 256
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 256
+    Me:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - organization
+        - role
+        - permissions
+      properties:
+        id: &id004
+          type: string
+          format: uuid
+        email:
+          type: string
+        name:
+          type: string
+        organization:
+          type: object
+          properties:
+            id: *id004
+            name:
+              type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+    CreateApiKeyRequest:
+      type: object
+      required:
+        - name
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        defaultService:
+          type: string
+          minLength: 1
+          maxLength: 120
+    ApiKey:
+      type: object
+      required:
+        - id
+        - name
+        - prefix
+        - createdAt
+      properties:
+        id: *id004
+        name:
+          type: string
+        prefix:
+          type: string
+          pattern: ^[A-Za-z0-9]{8}$
+        defaultService:
+          type:
+            - string
+            - 'null'
+        createdAt: &id005
+          type: string
+          format: date-time
+        lastUsedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        revokedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    ApiKeyCreated:
+      allOf:
+        - $ref: '#/components/schemas/ApiKey'
+        - type: object
+          required:
+            - token
+          properties:
+            token:
+              type: string
+              pattern: ^llk_[A-Za-z0-9]{8}_[A-Za-z0-9_-]{43}$
+              description: Shown once; only its SHA-256 is stored.
+    RawEvent:
+      type: object
+      additionalProperties: true
+      description: One log record. Unknown keys are kept as attributes (<= 16 KiB, depth <= 8).
+      properties:
+        timestamp:
+          oneOf:
+            - type: string
+            - type: number
+          description: ISO-8601, epoch seconds or epoch milliseconds (aliases @timestamp, time, ts)
+        level:
+          oneOf:
+            - type: string
+            - type: number
+          description: Aliases severity, lvl; pino numeric levels accepted
+        service:
+          type: string
+        host:
+          type: string
+        source:
+          type: string
+        message:
+          type: string
+          maxLength: 32768
+        trace_id:
+          type: string
+    IngestResult:
+      type: object
+      required:
+        - accepted
+        - rejectedCount
+        - rejected
+      properties:
+        accepted:
+          type: integer
+        rejectedCount:
+          type: integer
+        rejected:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            properties:
+              line:
+                type: integer
+              reason:
+                type: string
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+          maxLength: 4000
+          default: ''
+        from: *id005
+        to: *id005
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Default event limit (100) when the query has no head
+    SearchColumn:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          enum:
+            - time
+            - text
+            - number
+    SearchResponse:
+      type: object
+      required:
+        - mode
+        - columns
+        - rows
+        - range
+        - stats
+      properties:
+        mode:
+          enum:
+            - events
+            - table
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchColumn'
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        range:
+          type: object
+          properties:
+            from: *id005
+            to: *id005
+        stats:
+          type: object
+          properties:
+            rowCount:
+              type: integer
+            limit:
+              type: integer
+            truncated:
+              type: boolean
+            elapsedMs:
+              type: integer
+    HistogramRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+          maxLength: 4000
+          default: ''
+        from: *id005
+        to: *id005
+        buckets:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 60
+    HistogramResponse:
+      type: object
+      required:
+        - bucketSeconds
+        - buckets
+        - total
+        - range
+      properties:
+        bucketSeconds:
+          type: integer
+        buckets:
+          type: array
+          items:
+            type: object
+            properties:
+              start: *id005
+              count:
+                type: integer
+        total:
+          type: integer
+        range:
+          type: object
+          properties:
+            from: *id005
+            to: *id005
+    ValidateResponse:
+      oneOf:
+        - type: object
+          required:
+            - valid
+            - mode
+            - commands
+          properties:
+            valid:
+              const: true
+            mode:
+              enum:
+                - events
+                - table
+            commands:
+              type: array
+              items:
+                enum:
+                  - stats
+                  - sort
+                  - head
+                  - fields
+                  - where
+        - type: object
+          required:
+            - valid
+            - error
+          properties:
+            valid:
+              const: false
+            error:
+              $ref: '#/components/schemas/LensQLError'
+    Organization:
+      type: object
+      properties:
+        id: *id004
+        name:
+          type: string
+        slug:
+          type: string
+        createdAt: *id005
+    Member:
+      type: object
+      properties:
+        userId: *id004
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        joinedAt: *id005
+    Invitation:
+      type: object
+      properties:
+        id: *id004
+        email:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        expiresAt: *id005
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        actorUserId:
+          type:
+            - string
+            - 'null'
+        targetType:
+          type:
+            - string
+            - 'null'
+        targetId:
+          type:
+            - string
+            - 'null'
+        metadata:
+          type: object
+        ip:
+          type:
+            - string
+            - 'null'
+        requestId:
+          type:
+            - string
+            - 'null'
+        createdAt: *id005
+    IngestQuota:
+      type: object
+      properties:
+        maxEventsPerDay:
+          type: integer
+        maxBytesPerDay:
+          type: integer
+        usedEventsToday:
+          type: integer
+        usedBytesToday:
+          type: integer
+    Pipeline:
+      type: object
+      required:
+        - name
+        - processors
+      properties:
+        id: *id004
+        name:
+          type: string
+        match:
+          type: string
+          description: LensQL filter selecting events
+        enabled:
+          type: boolean
+        processors:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                enum:
+                  - grok
+                  - rename
+                  - drop
+                  - coerce
+              config:
+                type: object
+    FieldInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        types:
+          type: array
+          items:
+            enum:
+              - string
+              - number
+              - boolean
+              - object
+              - array
+        approxDistinct:
+          type: integer
+        sampleValues:
+          type: array
+          items: {}
+    SavedSearchInput:
+      type: object
+      required:
+        - name
+        - query
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        query:
+          type: string
+          maxLength: 4000
+        timePreset:
+          enum:
+            - 15m
+            - 1h
+            - 4h
+            - 24h
+            - 7d
+        visibility:
+          enum:
+            - private
+            - org
+    SavedSearch:
+      allOf:
+        - $ref: '#/components/schemas/SavedSearchInput'
+        - type: object
+          properties:
+            id: *id004
+            ownerId: *id004
+            createdAt: *id005
+            updatedAt: *id005
+    DashboardInput:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+        variables:
+          type: object
+        layout:
+          type: object
+    Dashboard:
+      allOf:
+        - $ref: '#/components/schemas/DashboardInput'
+        - type: object
+          properties:
+            id: *id004
+            panels:
+              type: array
+              items:
+                $ref: '#/components/schemas/Panel'
+            updatedAt: *id005
+    PanelInput:
+      type: object
+      required:
+        - title
+        - query
+        - chart
+      properties:
+        title:
+          type: string
+        query:
+          type: string
+          description: LensQL with | stats ... span=...
+        chart:
+          enum:
+            - line
+            - area
+            - bar
+            - table
+        savedSearchId: *id004
+        position:
+          type: object
+          properties:
+            x:
+              type: integer
+            y:
+              type: integer
+            w:
+              type: integer
+            h:
+              type: integer
+    Panel:
+      allOf:
+        - $ref: '#/components/schemas/PanelInput'
+        - type: object
+          properties:
+            id: *id004
+    AlertRuleInput:
+      type: object
+      required:
+        - name
+        - query
+        - kind
+        - every
+      properties:
+        name:
+          type: string
+        query:
+          type: string
+        kind:
+          enum:
+            - threshold
+            - ewma
+        condition:
+          type: object
+          properties:
+            column:
+              type: string
+            op:
+              enum:
+                - '>'
+                - '>='
+                - <
+                - <=
+            value:
+              type: number
+            alpha:
+              type: number
+            k:
+              type: number
+            warmupIntervals:
+              type: integer
+        every:
+          type: string
+          example: 1m
+        forDuration:
+          type: string
+          example: 5m
+        channelIds:
+          type: array
+          items: *id004
+        enabled:
+          type: boolean
+    AlertRule:
+      allOf:
+        - $ref: '#/components/schemas/AlertRuleInput'
+        - type: object
+          properties:
+            id: *id004
+            nextRunAt: *id005
+            createdAt: *id005
+    Alert:
+      type: object
+      properties:
+        id: *id004
+        ruleId: *id004
+        groupKey:
+          type: string
+        state:
+          enum:
+            - ok
+            - pending
+            - firing
+            - resolving
+            - silenced
+        value:
+          type: number
+        flapping:
+          type: boolean
+        changedAt: *id005
+    NotificationChannel:
+      type: object
+      required:
+        - kind
+      properties:
+        id: *id004
+        name:
+          type: string
+        kind:
+          enum:
+            - in_app
+            - webhook_outbox
+            - email_outbox
+        config:
+          type: object
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: object
+        readAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        createdAt: *id005
+    OutboxMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        channelId: *id004
+        dedupKey:
+          type: string
+        attempts:
+          type: integer
+        nextAttemptAt: *id005
+        deliveredAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        payload:
+          type: object
+    Incident:
+      type: object
+      properties:
+        id: *id004
+        title:
+          type: string
+        status:
+          enum:
+            - open
+            - acknowledged
+            - mitigated
+            - resolved
+        assigneeId:
+          type:
+            - string
+            - 'null'
+        openedAt: *id005
+        resolvedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    IncidentEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        kind:
+          enum:
+            - alert
+            - note
+            - status
+            - search
+        data:
+          type: object
+        actorUserId:
+          type:
+            - string
+            - 'null'
+        at: *id005
+    RetentionPolicy:
+      type: object
+      required:
+        - retentionDays
+      properties:
+        retentionDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+        archiveBeforeDrop:
+          type: boolean
+    PartitionInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: log_events_p20261124
+        day:
+          type: string
+          format: date
+        rows:
+          type: integer
+        bytes:
+          type: integer
+        archived:
+          type: boolean
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: VALIDATION_ERROR
+              message: Request validation failed
+              details:
+                - path: email
+                  message: Invalid email
+    Unauthenticated:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: UNAUTHENTICATED
+              message: Authentication required
+    Forbidden:
+      description: You do not have permission to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: FORBIDDEN
+              message: You do not have permission to perform this action
+    CsrfInvalid:
+      description: Missing or invalid CSRF token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: CSRF_INVALID
+              message: Missing or invalid CSRF token
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: NOT_FOUND
+              message: Resource not found
+    PayloadTooLarge:
+      description: Request body is too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: PAYLOAD_TOO_LARGE
+              message: Request body is too large
+    QueryError:
+      description: QUERY_INVALID (with lensqlCode and span), QUERY_TIMEOUT or QUERY_FAILED
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: QUERY_INVALID
+              message: Unknown command 'bogus'; expected stats, sort, head, fields or where
+              details:
+                lensqlCode: PARSE_ERROR
+                span:
+                  start: 14
+                  end: 19
+    RateLimited:
+      description: Too many attempts
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until the next attempt is allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: RATE_LIMITED
+              message: Too many attempts; try again later
+              details:
+                retryAfterSeconds: 2
+    NotImplemented:
+      description: This operation is planned but not implemented yet
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            data: null
+            error:
+              code: NOT_IMPLEMENTED
+              message: This operation is planned but not implemented yet
+              details:
+                ticket: LG-150
