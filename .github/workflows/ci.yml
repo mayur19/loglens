@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TEST_DATABASE_URL: postgresql://loglens:loglens@localhost:5432/loglens_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Start the runner's preinstalled PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          until pg_isready -h localhost -p 5432; do sleep 1; done
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE ROLE loglens LOGIN PASSWORD 'loglens' CREATEDB;"
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE loglens_test OWNER loglens;"
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -d loglens_test -c "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+          psql --version
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: npm run build
